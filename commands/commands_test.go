@@ -2,6 +2,7 @@ package commands
 
 import (
 	"testing"
+	"time"
 
 	"github.com/iotku/mumzic/database"
 )
@@ -69,5 +70,20 @@ func TestPlayNowAlias(t *testing.T) {
 	got1, got2 = getCommandAndArg("MusicButt p song name", "MusicButt", &Config)
 	if got1 != "p" || got2 != "song name" {
 		t.Errorf("got %q %q, wanted %q %q", got1, got2, "p", "song name")
+	}
+}
+
+func TestFormatDuration(t *testing.T) {
+	for d, want := range map[time.Duration]string{
+		12*time.Hour - time.Millisecond: "12 hours",
+		time.Hour:                       "1 hour",
+		90 * time.Minute:                "1 hour 30 minutes",
+		time.Minute:                     "1 minute",
+		45 * time.Minute:                "45 minutes",
+		0:                               "0 minutes",
+	} {
+		if got := formatDuration(d); got != want {
+			t.Errorf("formatDuration(%v) = %q, want %q", d, got, want)
+		}
 	}
 }

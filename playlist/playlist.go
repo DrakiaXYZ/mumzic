@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/iotku/mumzic/helper"
 	"github.com/iotku/mumzic/search"
@@ -19,15 +20,29 @@ const Directory = "playlists/" // Directory for saving/loading playlists
 type List struct {
 	Playlist [][]string
 	Position int
+
+	mu sync.RWMutex
 }
 
-func (list *List) Save(hostname string) {
+// Save writes the remaining tracks to the playlist file for hostname, starting at the current track if
+// includeCurrent is true and otherwise the one after it. With nothing remaining the file is removed.
+func (list *List) Save(hostname string, includeCurrent bool) {
+	list.mu.RLock()
+	defer list.mu.RUnlock()
+	start := list.Position
+	if !includeCurrent {
+		start++
+	}
 	var saveList [][]string
-	for i := list.Position; i < len(list.Playlist); i++ {
+	for i := start; i < len(list.Playlist); i++ {
 		saveList = append(saveList, list.Playlist[i])
 	}
 
 	if saveList == nil {
+		// Remove any playlist from a previous session, otherwise it would be loaded again
+		if err := os.Remove(Directory + hostname); err != nil && !os.IsNotExist(err) {
+			log.Println("Failed to remove old playlist file:", err)
+		}
 		return
 	}
 
@@ -63,21 +78,29 @@ func (list *List) Load(hostname string) {
 			log.Fatalln("json Unmarshal failed", err.Error())
 		}
 		log.Println("Applying previous playlist file.")
+		list.mu.Lock()
 		list.Playlist = pList
+		list.mu.Unlock()
 	}
 }
 
 // GetCurrentPath gets the raw path for the current item in the playlist
 func (list *List) GetCurrentPath() string {
+	list.mu.RLock()
+	defer list.mu.RUnlock()
 	return list.Playlist[list.Position][0]
 }
 
 // GetCurrentHuman gets the "Human Friendly" title for the current item in the playlist
 func (list *List) GetCurrentHuman() string {
+	list.mu.RLock()
+	defer list.mu.RUnlock()
 	return list.Playlist[list.Position][1]
 }
 
 func (list *List) GetNextHuman() string {
+	list.mu.RLock()
+	defer list.mu.RUnlock()
 	if len(list.Playlist) == 0 {
 		return ""
 	} else if len(list.Playlist) == list.Position+1 {
@@ -89,9 +112,11 @@ func (list *List) GetNextHuman() string {
 // GetList returns a list of items from the current to the end of the playlist
 // Note: Older items aren't removed immediately however aren't guaranteed to remain forever.
 func (list *List) GetList(max int) []string {
+	list.mu.RLock()
+	defer list.mu.RUnlock()
 	var trackList []string
 	for i := list.Position; i < list.Position+max; i++ {
-		if list.Position+max > list.Size() {
+		if list.Position+max > len(list.Playlist) {
 			return trackList
 		}
 		trackList = append(trackList, list.Playlist[i][1])
@@ -102,39 +127,76 @@ func (list *List) GetList(max int) []string {
 
 // HasNext returns true if there is another item remaining in the playlist
 func (list *List) HasNext() bool {
+	list.mu.RLock()
+	defer list.mu.RUnlock()
+	return list.hasNext()
+}
+
+func (list *List) hasNext() bool {
 	return len(list.Playlist) > list.Position+1
 }
 
 // Next shifts the playlist position forward by one if there is at least one more item in the playlist remaining
 func (list *List) Next() string {
-	if !list.HasNext() {
+	list.mu.Lock()
+	defer list.mu.Unlock()
+	if !list.hasNext() {
 		return ""
 	}
 	list.Position++
-	return list.GetCurrentPath()
+	return list.Playlist[list.Position][0]
 }
 
 // Skip moves the position by amount, generally this should be called by a playback.Player
 func (list *List) Skip(amount int) string {
-	if list.Size()+amount < 0 || !list.HasNext() {
+	list.mu.Lock()
+	defer list.mu.Unlock()
+	if len(list.Playlist)+amount < 0 || !list.hasNext() {
 		return ""
 	}
 
-	if list.Position+amount >= list.Size() {
+	if list.Position+amount >= len(list.Playlist) {
 		amount = 1 // only skip one track
 	}
 	list.Position += amount
-	return list.GetCurrentPath()
+	return list.Playlist[list.Position][0]
 }
 
 // Size returns an int of how many items the playlist contains
 func (list *List) Size() int {
+	list.mu.RLock()
+	defer list.mu.RUnlock()
 	return len(list.Playlist)
 }
 
 // IsEmpty returns whether the playlist contains any elements.
 func (list *List) IsEmpty() bool {
-	return len(list.Playlist) == 0
+	return list.Size() == 0
+}
+
+// Snapshot returns a copy of the playlist entries along with the current position
+func (list *List) Snapshot() (entries [][]string, position int) {
+	list.mu.RLock()
+	defer list.mu.RUnlock()
+	entries = make([][]string, len(list.Playlist))
+	copy(entries, list.Playlist)
+	return entries, list.Position
+}
+
+// Remove deletes the upcoming entry at index from the playlist. human must match the entry's title, which guards
+// against removing the wrong track when the playlist has changed since the caller last looked at it.
+func (list *List) Remove(index int, human string) error {
+	list.mu.Lock()
+	defer list.mu.Unlock()
+	if index <= list.Position || index >= len(list.Playlist) {
+		return errors.New("only upcoming tracks can be removed")
+	}
+	if list.Playlist[index][1] != human {
+		return errors.New("playlist changed, try again")
+	}
+
+	list.Playlist = append(list.Playlist[:index:index], list.Playlist[index+1:]...)
+	return nil
 }
 
 // AddToQueue ads either a filesystem ID or internet URL onto the Playlist queue. On success, it returns a human friendly
@@ -162,8 +224,11 @@ func (list *List) AddNext(arg string) error {
 	if err != nil {
 		return err
 	}
-	if list.Count() <= 1 || !list.HasNext() {
-		list.pAdd(path, human)
+
+	list.mu.Lock()
+	defer list.mu.Unlock()
+	if len(list.Playlist)-list.Position <= 1 || !list.hasNext() {
+		list.Playlist = append(list.Playlist, []string{path, human})
 		return nil
 	}
 
@@ -207,6 +272,8 @@ func getHumanAndPath(arg string) (human, path string, err error) {
 }
 
 func (list *List) pAdd(path, human string) {
+	list.mu.Lock()
+	defer list.mu.Unlock()
 	list.Playlist = append(list.Playlist, []string{path, human})
 }
 
@@ -227,5 +294,7 @@ func (list *List) queueYT(url, human string) bool {
 
 // Count is the amount of songs enqueued on the playlist
 func (list *List) Count() int {
-	return list.Size() - list.Position
+	list.mu.RLock()
+	defer list.mu.RUnlock()
+	return len(list.Playlist) - list.Position
 }

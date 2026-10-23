@@ -32,6 +32,7 @@ RUN apk add --no-cache \
     opusfile-dev
 
 COPY --from=builder /app/mumzic .
-COPY --from=builder /app/whitelist.txt /app/
+# whitelist.txt is optional, built-in defaults are used without it (the pattern also matches whitelist-example.txt so it never fails)
+COPY --from=builder /app/whitelist*.txt /app/
 
 ENTRYPOINT ["./mumzic"]

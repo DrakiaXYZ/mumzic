@@ -21,6 +21,16 @@ import (
 var AllowedURLPrefixes []string
 var whitelistFile = "whitelist.txt"
 
+// defaultURLPrefixes are allowed when whitelistFile doesn't exist, keep in sync with whitelist-example.txt
+var defaultURLPrefixes = []string{
+	"https://www.youtube.com/",
+	"https://youtube.com/",
+	"https://m.youtube.com/",
+	"https://music.youtube.com/",
+	"https://youtu.be/",
+	"https://soundcloud.com/",
+}
+
 func init() {
 	err := LoadAllowedURLPrefixesFromFile()
 	if err != nil {
@@ -28,9 +38,15 @@ func init() {
 	}
 }
 
-// LoadAllowedURLPrefixesFromFile loads prefixes from each line of a provided txt file
+// LoadAllowedURLPrefixesFromFile loads prefixes from each line of a provided txt file.
+// If the file doesn't exist the built-in defaults are used, an existing file (even an empty one) is used as is.
 func LoadAllowedURLPrefixesFromFile() error {
 	f, err := os.Open(whitelistFile) // #nosec G304 - Internal Helper method
+	if errors.Is(err, os.ErrNotExist) {
+		AllowedURLPrefixes = append([]string(nil), defaultURLPrefixes...)
+		log.Printf("%s not found, using default allowed URL prefixes: %v", whitelistFile, AllowedURLPrefixes)
+		return nil
+	}
 	if err != nil {
 		return err
 	}

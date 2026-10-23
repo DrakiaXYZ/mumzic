@@ -116,6 +116,28 @@ You can `go build` which should pull in my modified gumble which has stereo supp
 
 For additional options (such as setting the **username** or **password**), see `mumzic -help`
 
+### Allowed URLs
+
+Links (e.g. YouTube or SoundCloud) can only be played if they start with one of the prefixes in `whitelist.txt`, one per line. Without a `whitelist.txt` the bot allows the same sites as [`whitelist-example.txt`](whitelist-example.txt): YouTube (including `m.`, `music.` and `youtu.be`) and SoundCloud.
+
+To change this, copy `whitelist-example.txt` to `whitelist.txt` and edit it, then use `!reload` to apply it without restarting. An empty `whitelist.txt` blocks all links. End each prefix with `/`, so that e.g. `https://youtube.com/` doesn't also match `https://youtube.com.example.org/`.
+
+### Web UI
+
+Pass `-web` with an address to serve a web interface for adding tracks, viewing and removing items from the queue, and play / pause / stop / skip:
+
+```bash
+./mumzic -insecure -server [hostname or ip] -web :8080 -weburl https://music.example.com
+```
+
+The web UI is disabled unless `-web` is set. With Docker Compose, set `MUMZIC_WEB`, `MUMZIC_WEB_URL` and `MUMZIC_WEB_TOKEN_TTL` in `.env` instead (see `.env-example`) and uncomment `ports` in `docker-compose.yml`.
+
+To get in, type `!web` in the bot's channel. The bot privately messages you a personal link, which is valid for 12 hours (change with `-webtokenttl`, e.g. `-webtokenttl 30m`). Opening it signs that browser in until the link expires.
+
+- `-weburl` is the address people open the web UI at, used for the links. It defaults to `http://localhost:<port>`, so set it if anyone else will use the web UI or it's behind a reverse proxy.
+- Links are kept in memory, so restarting the bot signs everyone out.
+- Anyone who can send messages in the bot's channel can get a link. Serve the web UI over HTTPS (e.g. behind a reverse proxy) if it's reachable beyond your own machine, so links and sessions can't be read in transit.
+
 <details>
 <summary>Gumble CLI Flags</summary>
 
@@ -133,6 +155,12 @@ Usage of ./mumzic:
         Mumble server address (default "localhost:64738")
   -username string
         client username (default "gumble-bot")
+  -web string
+        address to serve the web UI on, e.g. :8080 (disabled if empty)
+  -weburl string
+        external URL of the web UI used for !web links, e.g. https://music.example.com (default http://localhost:<port>)
+  -webtokenttl duration
+        how long links from !web stay valid (default 12h0m0s)
 ```
 
 </details>

@@ -4,7 +4,11 @@ services:
     image: mumzic:latest
     env_file:
       - .env # copy from .env-example with server info
-    command: ["-insecure", "-password", "${MUMZIC_PASSWORD}", "-server", "${MUMZIC_SERVER}", "-username", "${MUMZIC_USER}"]
+    command: ["-insecure", "-password", "${MUMZIC_PASSWORD}", "-server", "${MUMZIC_SERVER}", "-username", "${MUMZIC_USER}",
+              "-web", "${MUMZIC_WEB:-}", "-weburl", "${MUMZIC_WEB_URL:-}", "-webtokenttl", "${MUMZIC_WEB_TOKEN_TTL:-12h}"]
+    # To use the web UI, set MUMZIC_WEB=:8080 in .env and uncomment:
+    # ports:
+    #   - "127.0.0.1:8080:8080"
  #   volumes:
     #  - "${HOME}/Music:/app/Music:ro" # genMusicSQLiteDB -trim="${HOME}/Music" -prefix="/app/Music" ${HOME}/Music
     #  - ./media.db:/app/media.db # <-- from genMusicSQLiteDB

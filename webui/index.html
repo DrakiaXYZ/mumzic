@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Name}}</title>
+<style>
+  :root {
+    --bg: #f6f6f4;
+    --surface: #ffffff;
+    --border: #e2e1dc;
+    --text: #1d1d1b;
+    --muted: #6b6a65;
+    --accent: #2f6fde;
+    --accent-text: #ffffff;
+    --danger: #c23b3b;
+    --hover: #efeeea;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .05);
+    --link-bg: #e4edfc;
+    --link-fg: #2457b3;
+    --file-bg: #e6f2e8;
+    --file-fg: #2d7a3e;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #141413;
+      --surface: #1e1e1c;
+      --border: #2f2f2c;
+      --text: #ecebe6;
+      --muted: #9a9993;
+      --accent: #5b8ff0;
+      --accent-text: #0d0d0c;
+      --danger: #e06464;
+      --hover: #282826;
+      --shadow: none;
+      --link-bg: #1f2d47;
+      --link-fg: #8fb2f5;
+      --file-bg: #1e3324;
+      --file-fg: #7fcb8f;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 48px; }
+  header { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 20px; }
+  h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; overflow-wrap: anywhere; }
+  h2 { font-size: 13px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin: 0 0 10px; }
+  .conn { font-size: 13px; color: var(--muted); display: flex; align-items: center; gap: 6px; flex: none; }
+  .conn::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--danger); }
+  .conn.ok::before { background: #3ba55c; }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; box-shadow: var(--shadow); margin-bottom: 16px; }
+
+  .now { display: flex; gap: 14px; align-items: flex-start; margin-bottom: 14px; }
+  .now .thumb { width: 160px; }
+  .now-info { min-width: 0; flex: 1; }
+  .now-title { font-size: 17px; font-weight: 600; margin: 0 0 4px; overflow-wrap: anywhere; }
+  .now-meta { font-size: 13px; color: var(--muted); display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .now-src { display: flex; gap: 8px; align-items: center; min-width: 0; margin-top: 6px; }
+  .badge { font-weight: 600; text-transform: capitalize; }
+  .badge.playing { color: #3ba55c; }
+  .badge.paused { color: #c98a1b; }
+
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    font: inherit; font-size: 14px; cursor: pointer;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text);
+    border-radius: 8px; padding: 7px 14px; min-height: 36px;
+  }
+  button:hover:not(:disabled) { background: var(--hover); }
+  button:disabled { opacity: .45; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); font-weight: 600; min-width: 84px; }
+  button.primary:hover:not(:disabled) { background: var(--accent); filter: brightness(1.08); }
+  #btn-playpause { min-width: 104px; }
+
+  form { display: flex; gap: 8px; }
+  input[type=text] {
+    flex: 1; min-width: 0; font: inherit; color: var(--text); background: var(--bg);
+    border: 1px solid var(--border); border-radius: 8px; padding: 7px 10px; min-height: 36px;
+  }
+  input[type=text]:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  input[type=text]:disabled { opacity: .6; cursor: default; }
+  .hint { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+
+  .bubble {
+    display: inline-block; font-size: 11px; font-weight: 600; line-height: 1; letter-spacing: .02em;
+    padding: 4px 0; width: 38px; text-align: center; border-radius: 999px; flex: none;
+  }
+  .bubble.link { background: var(--link-bg); color: var(--link-fg); }
+  .bubble.file { background: var(--file-bg); color: var(--file-fg); }
+  .thumb {
+    position: relative; flex: none; aspect-ratio: 16 / 9; border-radius: 6px; overflow: hidden; background: var(--hover);
+    display: flex; align-items: center; justify-content: center; color: var(--muted); font-size: 20px;
+  }
+  .thumb img {
+    position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain;
+    background: var(--hover); opacity: 0; transition: opacity .2s;
+  }
+  .thumb img.loaded { opacity: 1; }
+  .source { min-width: 0; font-family: var(--mono); font-size: 12px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  a.source:hover { color: var(--text); }
+
+  .queue-head { display: flex; justify-content: space-between; align-items: baseline; }
+  .count { font-size: 13px; color: var(--muted); }
+  ol { list-style: none; margin: 0; padding: 0; }
+  .row {
+    display: grid; align-items: center; gap: 12px;
+    grid-template-columns: 2ch 96px minmax(0, 1fr) 32px;
+    padding: 10px 0; border-top: 1px solid var(--border);
+  }
+  .row:first-child { border-top: none; padding-top: 4px; }
+  .num { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; font-size: 13px; }
+  .info { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+  .title-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .src { display: flex; gap: 8px; align-items: center; min-width: 0; }
+  .remove { border: none; background: none; color: var(--muted); padding: 4px 8px; min-height: 0; font-size: 18px; line-height: 1; }
+  .remove:hover:not(:disabled) { color: var(--danger); background: var(--hover); }
+  .empty { color: var(--muted); font-size: 14px; margin: 0; padding-top: 8px; border-top: 1px solid var(--border); }
+
+  @media (max-width: 560px) {
+    .row { grid-template-columns: 2ch 72px minmax(0, 1fr) 28px; gap: 10px; }
+    .remove { padding: 4px; }
+    .now .thumb { width: 112px; }
+  }
+
+  #toast {
+    position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%);
+    background: var(--danger); color: #fff; padding: 9px 14px; border-radius: 8px; font-size: 14px;
+    max-width: calc(100% - 32px); opacity: 0; pointer-events: none; transition: opacity .2s;
+  }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>{{.Name}}</h1>
+    <span class="conn" id="conn">Connecting…</span>
+  </header>
+
+  <section class="card" aria-labelledby="now-h">
+    <h2 id="now-h">Now playing</h2>
+    <div class="now">
+      <div class="thumb" id="now-thumb" hidden></div>
+      <div class="now-info">
+        <p class="now-title" id="now-title">Nothing queued</p>
+        <div class="now-meta" id="now-meta"></div>
+        <div class="now-src" id="now-src"></div>
+      </div>
+    </div>
+    <div class="controls">
+      <button class="primary" id="btn-playpause">▶&#xFE0E; Play</button>
+      <button id="btn-stop">■&#xFE0E; Stop</button>
+      <button id="btn-skip">Skip ›</button>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="add-h">
+    <h2 id="add-h">Add to queue</h2>
+    <form id="add-form">
+      <input type="text" id="add-input" placeholder="Track ID, URL, or search" autocomplete="off" aria-label="Track ID, URL, or search">
+      <button class="primary" type="submit" id="add-btn">Add</button>
+    </form>
+    <p class="hint">Numeric IDs come from the local library (<code>!search</code>). Anything else is looked up on YouTube.</p>
+  </section>
+
+  <section class="card" aria-labelledby="queue-h">
+    <div class="queue-head">
+      <h2 id="queue-h">Up next</h2>
+      <span class="count" id="queue-count"></span>
+    </div>
+    <ol id="queue"></ol>
+    <p class="empty" id="queue-empty">The queue is empty.</p>
+  </section>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var state = null;
+  var busy = false;
+  var toastTimer;
+  var lastQueueKey = null;
+  var lastCurrentKey = null;
+
+  function el(tag, cls, text) {
+    var e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+
+  function toast(msg) {
+    var t = $("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.classList.remove("show"); }, 4000);
+  }
+
+  function bubble(t) {
+    return el("span", "bubble " + t.type, t.type);
+  }
+
+  // Link URLs are shown without the scheme to save space, file names as is
+  function sourceNode(t) {
+    if (t.type !== "link") {
+      var f = el("span", "source", t.source);
+      f.title = t.source;
+      return f;
+    }
+    var a = el("a", "source", t.source.replace(/^https?:\/\/(www\.)?/, ""));
+    a.href = t.source;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.title = t.source;
+    return a;
+  }
+
+  // Shows a placeholder, replaced by the track's art (served by the bot) once it loads
+  function thumbInto(box, t) {
+    box.replaceChildren(el("span", null, "♪"));
+    if (!t.art) return;
+    var img = el("img");
+    img.alt = "";
+    img.loading = "lazy";
+    img.addEventListener("load", function () { img.classList.add("loaded"); });
+    img.addEventListener("error", function () { img.remove(); });
+    img.src = t.art;
+    box.append(img);
+  }
+
+  function render(s) {
+    state = s;
+    var conn = $("conn");
+    conn.textContent = (s.connected ? "Connected" : "Not connected") + (s.user ? " as " + s.user : "");
+    conn.classList.toggle("ok", s.connected);
+
+    $("now-title").textContent = s.current ? s.current.title.trim() : "Nothing queued";
+
+    var meta = $("now-meta");
+    meta.replaceChildren();
+    if (s.connected) {
+      meta.append(el("span", "badge " + s.status, s.status));
+      if (s.radio) meta.append(el("span", null, "Radio mode"));
+      meta.append(el("span", null, "Volume " + s.volume + "%"));
+    }
+
+    var currentKey = s.current ? s.current.index + "|" + s.current.source : "";
+    if (currentKey !== lastCurrentKey) {
+      lastCurrentKey = currentKey;
+      var nowThumb = $("now-thumb");
+      nowThumb.hidden = !s.current;
+      nowThumb.replaceChildren();
+      $("now-src").replaceChildren();
+      if (s.current) {
+        thumbInto(nowThumb, s.current);
+        $("now-src").append(bubble(s.current), sourceNode(s.current));
+      }
+    }
+
+    var playing = s.status === "playing";
+    var pp = $("btn-playpause");
+    pp.textContent = playing ? "❚❚ Pause" : (s.status === "paused" ? "▶︎ Resume" : "▶︎ Play");
+    pp.disabled = busy || !s.connected || (!playing && !s.current);
+    $("btn-stop").disabled = busy || !s.connected || s.status === "stopped";
+    $("btn-skip").disabled = busy || !s.connected || (!s.radio && s.queue.length === 0 && s.status === "stopped");
+    $("add-btn").disabled = $("add-input").disabled = busy || !s.connected;
+
+    // Only rebuild the list when the queue changes, so thumbnails don't reload on every poll
+    var queueKey = JSON.stringify(s.queue);
+    if (queueKey !== lastQueueKey) {
+      lastQueueKey = queueKey;
+      $("queue").replaceChildren.apply($("queue"), s.queue.map(function (t, i) {
+        var li = el("li", "row");
+        var thumb = el("div", "thumb");
+        thumbInto(thumb, t);
+        var info = el("div", "info");
+        var text = el("span", "title-text", t.title.trim());
+        text.title = t.title.trim();
+        var src = el("div", "src");
+        src.append(bubble(t), sourceNode(t));
+        info.append(text, src);
+        var rm = el("button", "remove", "×");
+        rm.setAttribute("aria-label", "Remove " + t.title.trim());
+        rm.addEventListener("click", function () { send("/api/remove", { index: t.index, title: t.title }); });
+        li.append(el("span", "num", String(i + 1)), thumb, info, rm);
+        return li;
+      }));
+    }
+    $("queue").querySelectorAll(".remove").forEach(function (b) { b.disabled = busy; });
+    $("queue-empty").hidden = s.queue.length > 0;
+    $("queue-count").textContent = s.queue.length ? s.queue.length + (s.queue.length === 1 ? " track" : " tracks") : "";
+  }
+
+  function send(path, body) {
+    busy = true;
+    if (state) render(state);
+    return fetch(path, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body || {})
+    }).then(function (res) {
+      if (res.status === 401) return sessionExpired();
+      return res.json().then(function (data) {
+        if (!res.ok) {
+          toast(data.error || "Request failed");
+          return refresh().then(function () { return false; });
+        }
+        render(data);
+        return true;
+      });
+    }).catch(function () {
+      toast("Could not reach the bot");
+      return false;
+    }).finally(function () {
+      busy = false;
+      if (state) render(state);
+    });
+  }
+
+  // Reloading shows the server's "get a new link" page
+  function sessionExpired() {
+    location.reload();
+    return new Promise(function () {});
+  }
+
+  function refresh() {
+    return fetch("/api/state", { cache: "no-store" })
+      .then(function (res) { return res.status === 401 ? sessionExpired() : res.json(); })
+      .then(render)
+      .catch(function () {
+        $("conn").textContent = "Web UI offline";
+        $("conn").classList.remove("ok");
+      });
+  }
+
+  $("btn-playpause").addEventListener("click", function () {
+    send(state && state.status === "playing" ? "/api/pause" : "/api/play");
+  });
+  $("btn-stop").addEventListener("click", function () { send("/api/stop"); });
+  $("btn-skip").addEventListener("click", function () { send("/api/skip"); });
+
+  $("add-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var input = $("add-input");
+    var track = input.value.trim();
+    if (!track || busy) return;
+    var btn = $("add-btn");
+    btn.textContent = "Adding…";
+    send("/api/queue", { track: track }).then(function (ok) {
+      btn.textContent = "Add";
+      if (ok) input.value = "";
+      input.focus();
+    });
+  });
+
+  refresh();
+  setInterval(function () { if (!document.hidden && !busy) refresh(); }, 2000);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) refresh(); });
+})();
+</script>
+</body>
+</html>

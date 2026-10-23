@@ -7,6 +7,8 @@ Note: PMing the bot currently doesn't have the prefix for commands, so **!summon
 | Command | Info                      | Notes                                         |
 |---------|---------------------------|-----------------------------------------------|
 | !summon | Bot joins sender's channel| PM the bot if you are not in the same channel | 
+| !reload | Reload `whitelist.txt`   | Applies changes to the allowed URLs without restarting the bot |
+| !web    | Get a link to the web UI  | Sent to you privately, valid for 12 hours by default. Only works when the web UI is enabled | 
 
 ### Playback
 | Command                      | Info                                               | Notes                                                                 |
@@ -15,6 +17,7 @@ Note: PMing the bot currently doesn't have the prefix for commands, so **!summon
 | random/rand [#]              | Add Random Tracks                                  | Random track(s) from filesystem                                       |
 | radio                        | Starts/Stops "Radio Mode"                          | Shuffles through local media files continously                        |
 | stop                         | Stop playing track                                 | If you use !play with no arguments; will restart track from beginning |
+| pause                        | Pause playing track                                | Use !play with no arguments to resume                                 |
 | skip/next [#]                | skip # amount of tracks                            | Default 1                                                             |
 | playnow  [ID or URL]         | Play provided ID or URL immediately                |                                                                       |
 | playnext/addnext [ID or URL] | Add the provided ID or URL after the current track |                                                                       |

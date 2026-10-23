@@ -55,8 +55,8 @@ func watchMsgChan() {
 			bundle.client.Self.SetComment(bundle.msg)
 		} else {
 			gumbleUser := bundle.client.Users.Find(bundle.username)
-			if gumbleUser == nil { // User not found.
-				return
+			if gumbleUser == nil { // User not found, e.g. they disconnected
+				continue
 			}
 			gumbleUser.Send(bundle.msg)
 		}

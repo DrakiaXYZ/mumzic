@@ -3,14 +3,17 @@ package main
 import (
 	"flag"
 	"log"
+	"net"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/iotku/mumzic/commands"
 	"github.com/iotku/mumzic/database"
 	"github.com/iotku/mumzic/helper"
 	"github.com/iotku/mumzic/playback"
+	"github.com/iotku/mumzic/webui"
 	_ "github.com/mattn/go-sqlite3"
 	"layeh.com/gumble/gumble"
 	"layeh.com/gumble/gumbleutil"
@@ -21,6 +24,12 @@ func main() {
 	var bConfig *database.Config
 	var hostname, username string
 
+	webAddr := flag.String("web", "", "address to serve the web UI on, e.g. :8080 (disabled if empty)")
+	webURL := flag.String("weburl", "", "external URL of the web UI used for !web links, e.g. https://music.example.com (default http://localhost:<port>)")
+	webTokenTTL := flag.Duration("webtokenttl", webui.DefaultTokenTTL, "how long links from !web stay valid")
+	var webServer webui.Server
+	var startWeb sync.Once
+
 	cleanUp := func() {
 		if bConfig != nil {
 			bConfig.Channel = channelPlayer.Client.Self.Channel.Name
@@ -28,7 +37,7 @@ func main() {
 		}
 
 		if channelPlayer != nil {
-			channelPlayer.Playlist.Save(bConfig.Hostname)
+			channelPlayer.SavePlaylist(bConfig.Hostname)
 		}
 
 		database.Close(database.ConfigDB)
@@ -60,6 +69,21 @@ func main() {
 			channelPlayer = playback.NewPlayer(e.Client, bConfig)
 			channelPlayer.Playlist.Load(bConfig.Hostname)
 			log.Printf("audio player loaded! (%d files)\n", database.GetMaxID())
+
+			webServer.SetPlayer(channelPlayer)
+			if *webAddr != "" {
+				startWeb.Do(func() {
+					webServer.Name = username
+					webServer.URL = *webURL
+					if webServer.URL == "" {
+						webServer.URL = defaultWebURL(*webAddr)
+						log.Println("No -weburl set, !web links will point to", webServer.URL)
+					}
+					webServer.TokenTTL = *webTokenTTL
+					commands.WebLink = webServer.IssueLink
+					go func() { log.Println("Web UI stopped:", webServer.ListenAndServe(*webAddr)) }()
+				})
+			}
 		},
 		TextMessage: func(e *gumble.TextMessageEvent) {
 			if e.Sender == nil {
@@ -105,4 +129,16 @@ func getValueFromFlag(lookup *flag.Flag) string {
 	}
 
 	return lookup.Value.String()
+}
+
+// defaultWebURL guesses the web UI's URL from its listen address, for when -weburl isn't set
+func defaultWebURL(addr string) string {
+	host, port, err := net.SplitHostPort(addr)
+	if err != nil {
+		return "http://" + addr
+	}
+	if host == "" || host == "0.0.0.0" || host == "::" {
+		host = "localhost"
+	}
+	return "http://" + net.JoinHostPort(host, port)
 }
